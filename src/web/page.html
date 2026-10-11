@@ -1,0 +1,495 @@
+<title>Dalvik Web Player</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one centred column; the game sits in a landscape "handset" bezel, controls and the APK facts below it. */
+:root {
+  --sea: #0c2a33;        /* page ground: deep lagoon */
+  --sea-2: #123a45;      /* raised panels */
+  --sea-3: #1b4b57;      /* hairlines, inputs */
+  --sand: #f2d7a6;       /* primary text-adjacent accent */
+  --foam: #e8f3f1;       /* main text */
+  --mist: #9fbfbd;       /* secondary text */
+  --coral: #ff8a5c;      /* the one bold accent: primary actions */
+  --bezel: #071a20;
+  --ok: #7fd6a4;
+  --warn: #ffcf6b;
+  --bad: #ff8a8a;
+  --f-display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+  --f-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+body {
+  background: radial-gradient(120% 60vh at 50% -10vh, #17505c 0%, transparent 70%) no-repeat, var(--sea);
+  color: var(--foam);
+  font-family: var(--f-body);
+  font-size: 15px;
+  line-height: 1.5;
+}
+.wrap {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding-inline: 16px;
+  padding-block: 20px 40px;
+  display: grid;
+  gap: 18px;
+}
+header.top { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.brand { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+h1 {
+  font-family: var(--f-display);
+  font-weight: 800;
+  font-size: clamp(22px, 3.2vw, 30px);
+  letter-spacing: -0.01em;
+  margin: 0;
+  text-wrap: balance;
+}
+h1 .dot { color: var(--coral); }
+.sub { color: var(--mist); font-size: 13.5px; }
+.chip {
+  font-family: var(--f-mono); font-size: 12px; color: var(--sand);
+  border: 1px solid var(--sea-3); border-radius: 999px; padding: 3px 10px; white-space: nowrap;
+}
+
+/* handset */
+.stage { width: 100%; max-width: max(320px, calc((100vh - 230px) * 1.6625 + 110px)); justify-self: center; }
+.stage:fullscreen { max-width: none; }
+.handset {
+  position: relative;
+  background: var(--bezel);
+  border-radius: 28px;
+  padding: clamp(10px, 2.2vw, 22px) clamp(14px, 4vw, 54px);
+  box-shadow: 0 1px 0 #2a5c68 inset, 0 30px 60px -30px #000c;
+  max-width: 100%;
+}
+.handset::before, .handset::after { /* earpiece + button, purely to read as a 2012 phone on its side */
+  content: ""; position: absolute; top: 50%; transform: translateY(-50%);
+  background: #12303a; border-radius: 99px;
+}
+.handset::before { left: clamp(4px, 1.4vw, 20px); width: 5px; height: 22%; }
+.handset::after { right: clamp(4px, 1.2vw, 16px); width: clamp(10px, 1.6vw, 22px); height: clamp(10px, 1.6vw, 22px); border: 2px solid #1d4651; background: transparent; }
+.screen {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 532 / 320;
+  background: #000;
+  border-radius: 6px;
+  overflow: hidden;
+  touch-action: none;
+}
+.screen canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; user-select: none; -webkit-user-select: none; }
+.stage:fullscreen, .stage.fake-full { background: #000; display: grid; place-items: center; }
+.stage.fake-full { position: fixed; inset: 0; z-index: 50; max-width: none; padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px); }
+.stage.fake-full .handset { background: #000; padding: 0; border-radius: 0; box-shadow: none; width: min(100vw, calc(100dvh * 532 / 320)); }
+.stage.fake-full .handset::before, .stage.fake-full .handset::after { display: none; }
+.stage.fake-full .screen { border-radius: 0; }
+.exitfs { display: none; position: fixed; left: calc(8px + env(safe-area-inset-left, 0px)); bottom: calc(8px + env(safe-area-inset-bottom, 0px)); z-index: 60; width: 32px; height: 32px; padding: 0; justify-content: center; border-radius: 50%; background: #0008; border-color: #fff3; color: #fff; font-size: 14px; opacity: .6; }
+.exitfs:hover { opacity: 1; background: #000c; }
+.stage:fullscreen .exitfs, .stage.fake-full .exitfs { display: inline-flex; }
+.soundhint { position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%); z-index: 4; font: 500 12.5px var(--f-body); color: #fff; background: #000a; border-radius: 99px; padding: 6px 12px; pointer-events: none; white-space: nowrap; }
+.stage:fullscreen .handset { background: #000; padding: 0; border-radius: 0; box-shadow: none; width: min(100vw, calc(100vh * 532 / 320)); }
+.stage:fullscreen .handset::before, .stage:fullscreen .handset::after { display: none; }
+.stage:fullscreen .screen { border-radius: 0; }
+
+/* overlay states inside the screen */
+.overlay {
+  position: absolute; inset: 0; display: grid; place-items: center; padding: 16px;
+  background: linear-gradient(160deg, #0f3a44 0%, #0a2228 100%);
+}
+.card { width: min(460px, 100%); display: grid; gap: 14px; text-align: left; }
+.card h2 { font-family: var(--f-display); font-weight: 800; font-size: clamp(18px, 2.6vw, 24px); margin: 0; text-wrap: balance; }
+.card p { margin: 0; color: var(--mist); font-size: 14px; }
+.drop {
+  border: 1.5px dashed #3b6f7b; border-radius: 14px; padding: 18px;
+  display: grid; gap: 10px; justify-items: start; transition: border-color .15s, background .15s;
+}
+.drop.over { border-color: var(--sand); background: #ffffff0a; }
+.row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+button, .btn {
+  font: 600 14px/1 var(--f-body);
+  color: var(--foam); background: var(--sea-3);
+  border: 1px solid #2c6370; border-radius: 10px; padding: 10px 14px;
+  cursor: pointer; display: inline-flex; align-items: center; gap: 8px;
+}
+button:hover, .btn:hover { background: #22596a; }
+button:focus-visible, .btn:focus-visible, input:focus-visible { outline: 2px solid var(--sand); outline-offset: 2px; }
+button.primary, .btn.primary { background: var(--coral); border-color: var(--coral); color: #2a0f04; }
+button.primary:hover, .btn.primary:hover { background: #ff9d76; }
+button.quiet { background: transparent; border-color: transparent; color: var(--mist); padding-inline: 6px; }
+button.quiet:hover { color: var(--foam); background: transparent; text-decoration: underline; }
+button[aria-pressed="true"] { background: #2b6e7e; border-color: var(--sand); }
+button:disabled { opacity: .5; cursor: default; }
+input[type=file] { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+label.check { display: inline-flex; gap: 8px; align-items: center; color: var(--mist); font-size: 13px; cursor: pointer; }
+.progress { height: 8px; border-radius: 99px; background: #0a1f25; overflow: hidden; border: 1px solid var(--sea-3); }
+.progress > i { display: block; height: 100%; width: 0%; background: linear-gradient(90deg, var(--sand), var(--coral)); transition: width .15s; }
+.mono { font-family: var(--f-mono); font-size: 12.5px; color: var(--mist); overflow-wrap: anywhere; }
+.err { color: var(--bad); font-size: 13.5px; }
+
+/* in-game dialog (Android AlertDialog) */
+.dlg { position: absolute; inset: 0; display: grid; place-items: center; background: #0008; padding: 16px; }
+.dlg form { width: min(380px, 100%); background: #f4f4f2; color: #1d1d1d; border-radius: 6px; padding: 18px; display: grid; gap: 12px; box-shadow: 0 20px 40px #0008; font-family: Roboto, var(--f-body); }
+.dlg h3 { margin: 0; font-size: 18px; font-weight: 600; }
+.dlg p { margin: 0; color: #444; font-size: 14px; }
+.dlg input[type=text] { font: 16px var(--f-body); padding: 8px 4px; border: 0; border-bottom: 2px solid #33b5e5; background: transparent; color: #111; }
+.dlg .row { justify-content: flex-end; }
+.dlg button { background: transparent; color: #0e7aa3; border: 0; text-transform: uppercase; letter-spacing: .04em; }
+.dlg button:hover { background: #0e7aa31a; }
+
+/* controls */
+.controls { width: 100%; max-width: 1080px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; justify-content: space-between; }
+.controls .group { display: flex; gap: 8px; flex-wrap: wrap; }
+.controls kbd { font-family: var(--f-mono); font-size: 11px; color: var(--mist); border: 1px solid #2c6370; border-bottom-width: 2px; border-radius: 4px; padding: 0 4px; }
+.status { font-family: var(--f-mono); font-size: 12px; color: var(--mist); display: flex; gap: 14px; flex-wrap: wrap; font-variant-numeric: tabular-nums; }
+.status b { color: var(--foam); font-weight: 500; }
+.pill { display: inline-flex; align-items: center; gap: 6px; }
+.pill::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--mist); }
+.pill.run::before { background: var(--ok); }
+.pill.load::before { background: var(--warn); }
+.pill.stop::before { background: var(--bad); }
+
+/* facts */
+.facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 1px; background: var(--sea-3); border: 1px solid var(--sea-3); border-radius: 12px; overflow: hidden; }
+.fact { background: var(--sea); padding: 12px 14px; display: grid; gap: 2px; min-width: 0; }
+.fact dt { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--mist); }
+.fact dd { margin: 0; font-family: var(--f-mono); font-size: 13px; color: var(--sand); overflow-wrap: anywhere; }
+details.log summary { cursor: pointer; color: var(--mist); font-size: 13px; }
+details.log pre { margin: 8px 0 0; max-height: 220px; overflow: auto; background: #071a20; border: 1px solid var(--sea-3); border-radius: 8px; padding: 10px; font: 11.5px/1.45 var(--f-mono); color: #b9d3d0; white-space: pre-wrap; }
+.note { color: var(--mist); font-size: 13px; max-width: 70ch; }
+@media (max-width: 560px) {
+  .controls { justify-content: flex-start; }
+  .controls .label { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <h1>Dalvik Web Player<span class="dot">.</span></h1>
+      <span class="sub">Pocket God 1.4.1 for Android, running on a Dalvik interpreter compiled to WebAssembly</span>
+    </div>
+    <span class="chip" id="vmChip">WASM VM · GLES 1.1 → WebGL</span>
+  </header>
+
+  <section class="stage" id="stage">
+    <button type="button" class="exitfs" id="bExitFs" aria-label="Leave full screen" title="Leave full screen">✕</button>
+    <div class="handset">
+      <div class="screen" id="screen">
+        <canvas id="gl" aria-label="Game screen"></canvas>
+        <div class="soundhint" id="soundHint" hidden>Tap the game to turn on sound</div>
+
+        <div class="overlay" id="ovOpen">
+          <div class="card">
+            <h2>Open your Pocket God APK</h2>
+            <p>Pick <span class="mono">PG_1.4.1.apk</span> or drop it here. It is read on this device and never uploaded. On your own site, put the APK next to this page as <span class="mono">base.apk</span> and it loads by itself.</p>
+            <div class="drop" id="drop">
+              <div class="row">
+                <label class="btn primary" for="file">Choose APK…</label>
+                <input type="file" id="file" accept=".apk,application/vnd.android.package-archive,application/zip">
+                <span class="mono" id="dropHint">or drag the file onto this box</span>
+              </div>
+              <label class="check"><input type="checkbox" id="remember" checked> Keep the APK in this browser so it opens instantly next time</label>
+            </div>
+            <div class="err" id="openErr" hidden></div>
+          </div>
+        </div>
+
+        <div class="overlay" id="ovCached" hidden>
+          <div class="card">
+            <h2>Ready to play</h2>
+            <p>Your saved copy <span class="mono" id="cachedName">PG_1.4.1.apk</span> is stored in this browser.</p>
+            <div class="row">
+              <button class="primary" id="playCached" type="button">▶ Start game</button>
+              <button class="quiet" id="forget" type="button">Use a different APK</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="overlay" id="ovLoad" hidden>
+          <div class="card">
+            <h2 id="loadTitle">Unpacking the APK</h2>
+            <div class="progress"><i id="bar"></i></div>
+            <div class="mono" id="loadDetail">reading the zip directory</div>
+          </div>
+        </div>
+
+        <div class="overlay" id="ovExit" hidden>
+          <div class="card">
+            <h2 id="exitTitle">The game closed</h2>
+            <p id="exitMsg">Pocket God quit, the same way it would on a phone.</p>
+            <div class="row"><button class="primary" id="restart" type="button">Restart</button></div>
+          </div>
+        </div>
+
+        <div class="dlg" id="dlg" hidden>
+          <form id="dlgForm">
+            <h3 id="dlgTitle"></h3>
+            <p id="dlgMsg"></p>
+            <input type="text" id="dlgInput" maxlength="40" autocomplete="off">
+            <div class="row">
+              <button type="button" id="dlgNeg"></button>
+              <button type="submit" id="dlgPos"></button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="controls">
+    <div class="group">
+      <button type="button" id="bBack" disabled title="Android back button (Esc)">◀ <span class="label">Back</span> <kbd>Esc</kbd></button>
+      <button type="button" id="bShake" disabled title="Shake the phone (S)">≋ <span class="label">Shake</span> <kbd>S</kbd></button>
+      <button type="button" id="bTilt" disabled aria-pressed="false" title="Tilt with the arrow keys">⟲ <span class="label">Tilt</span> <kbd>←</kbd><kbd>→</kbd></button>
+      <button type="button" id="bMute" aria-pressed="false" title="Mute (M)">♪ <span class="label">Sound on</span></button>
+      <button type="button" id="bFull" title="Full screen (F)">⛶ <span class="label">Full screen</span></button>
+    </div>
+    <div class="status">
+      <span class="pill" id="state">no APK loaded</span>
+      <span>frame <b id="sMs">–</b> ms</span>
+      <span><b id="sFps">–</b> fps</span>
+      <span>draws <b id="sDraws">–</b></span>
+    </div>
+  </div>
+
+  <dl class="facts" id="facts">
+    <div class="fact"><dt>Package</dt><dd id="fPkg">com.ngmoco.pocketgod · v1.4.1</dd></div>
+    <div class="fact"><dt>Bytecode</dt><dd id="fDex">classes.dex, waiting for APK</dd></div>
+    <div class="fact"><dt>Assets</dt><dd id="fAssets">–</dd></div>
+    <div class="fact"><dt>Display</dt><dd id="fDisp">532 × 320 logical, landscape</dd></div>
+  </dl>
+
+  <p class="note">Drag pygmies to pick them up and fling them. The menu buttons work by tapping, the same as on a phone. Back stands in for the phone's back key. On a phone held sideways, the game reads your phone's tilt; lay it flat and the island stays level. On a computer, Shake and Tilt stand in for the motion sensor. Your island progress is saved in this browser.</p>
+
+  <details class="log"><summary>VM console</summary><pre id="log"></pre></details>
+</div>
+
+<script>/*__HOST_JS__*/</script>
+<script>
+const WASM_B64 = "__WASM_B64__";
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const ov = { open: $('ovOpen'), cached: $('ovCached'), load: $('ovLoad'), exit: $('ovExit') };
+  const show = (k) => { for (const [n, el] of Object.entries(ov)) el.hidden = n !== k; };
+  const setState = (txt, cls) => { const s = $('state'); s.textContent = txt; s.className = 'pill ' + (cls || ''); };
+  const logEl = $('log');
+  let logBuf = [], logTimer = 0;
+  const pushLog = (s) => {
+    logBuf.push(s); if (logBuf.length > 300) logBuf.shift();
+    if (!logTimer) logTimer = setTimeout(() => { logTimer = 0; logEl.textContent = logBuf.join('\n'); logEl.scrollTop = logEl.scrollHeight; }, 250);
+  };
+  const mb = (n) => (n / 1048576).toFixed(1) + ' MB';
+
+  /* ---------- APK cache (IndexedDB, best effort) ---------- */
+  const DB = 'dalvik-web-player', STORE = 'apk';
+  const idb = () => new Promise((res, rej) => {
+    try {
+      const r = indexedDB.open(DB, 1);
+      r.onupgradeneeded = () => r.result.createObjectStore(STORE);
+      r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+    } catch (e) { rej(e); }
+  });
+  const cacheGet = async () => { try { const db = await idb(); return await new Promise((res) => { const q = db.transaction(STORE).objectStore(STORE).get('main'); q.onsuccess = () => res(q.result || null); q.onerror = () => res(null); }); } catch (e) { return null; } };
+  const cachePut = async (v) => { try { const db = await idb(); await new Promise((res) => { const t = db.transaction(STORE, 'readwrite'); t.objectStore(STORE).put(v, 'main'); t.oncomplete = res; t.onerror = res; }); } catch (e) { } };
+  const cacheDel = async () => { try { const db = await idb(); await new Promise((res) => { const t = db.transaction(STORE, 'readwrite'); t.objectStore(STORE).delete('main'); t.oncomplete = res; t.onerror = res; }); } catch (e) { } };
+
+  let host = null, cached = null, currentApk = null;
+  const wasmBytes = () => { const s = atob(WASM_B64); const u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return u; };
+
+  /* ---------- dialogs from the game ---------- */
+  let dlgCb = null;
+  const openDialog = (d, cb) => {
+    dlgCb = cb;
+    $('dlgTitle').textContent = d.title; $('dlgMsg').textContent = d.msg; $('dlgMsg').hidden = !d.msg;
+    $('dlgInput').hidden = !d.input; $('dlgInput').value = d.text || '';
+    $('dlgPos').textContent = d.pos || 'OK'; $('dlgPos').hidden = !d.pos;
+    $('dlgNeg').textContent = d.neg || 'Cancel'; $('dlgNeg').hidden = !d.neg;
+    $('dlg').hidden = false;
+    setTimeout(() => (d.input ? $('dlgInput') : $('dlgPos')).focus(), 0);
+  };
+  const closeDialog = (which) => {
+    $('dlg').hidden = true;
+    const cb = dlgCb; dlgCb = null;
+    if (cb) cb(which, $('dlgInput').hidden ? null : $('dlgInput').value);
+  };
+  $('dlgForm').addEventListener('submit', (e) => { e.preventDefault(); closeDialog(-1); });
+  $('dlgNeg').addEventListener('click', () => closeDialog(-2));
+
+  /* ---------- boot ---------- */
+  async function boot(buf, name) {
+    currentApk = { buf, name };
+    show('load'); setState('loading', 'load');
+    $('loadTitle').textContent = 'Unpacking ' + name;
+    const canvas = $('gl');
+    host = new PGHost(canvas, {
+      onLog: pushLog,
+      onDialog: openDialog,
+      onExit: (code) => {
+        setState(code ? 'crashed' : 'stopped', 'stop');
+        $('exitTitle').textContent = code ? 'The VM stopped' : 'The game closed';
+        $('exitMsg').textContent = code ? 'The emulator hit an error it could not recover from. Open the VM console below for details, then restart.' : 'Pocket God quit, the same way it would on a phone.';
+        show('exit'); host.audio.pauseAll(); enableControls(false);
+      },
+      onCrash: (e) => { setState('crashed', 'stop'); $('exitTitle').textContent = 'The VM stopped'; $('exitMsg').textContent = 'The emulator hit an error it could not recover from. Open the VM console below for details, then restart.'; show('exit'); enableControls(false); },
+      onFrame: tick,
+      onFirstTouch: () => { $('soundHint').hidden = true; askMotion(); },
+    });
+    window.pgHost = host;
+    host.audio.muted = muted;
+    host.audio.ensure();
+    try {
+      await host.loadApk(buf, (f, n) => { $('bar').style.width = (f * 100).toFixed(1) + '%'; $('loadDetail').textContent = n; });
+      const z = host.zip.entries;
+      const dex = z.get('classes.dex');
+      let assetBytes = 0, assetCount = 0;
+      for (const [n, e] of z) if (n.startsWith('assets/')) { assetCount++; assetBytes += e.usize; }
+      $('fDex').textContent = 'classes.dex · ' + mb(dex.usize);
+      $('fAssets').textContent = assetCount + ' files · ' + mb(assetBytes);
+      $('loadTitle').textContent = 'Starting the Dalvik VM';
+      $('loadDetail').textContent = 'loading classes and running PocketGod.onCreate()';
+      await new Promise(r => setTimeout(r, 30));
+      await host.start(wasmBytes());
+      $('fDisp').textContent = '532 × 320 logical · surface ' + canvas.width + ' × ' + canvas.height;
+      show(null);
+      setState('running', 'run');
+      $('soundHint').hidden = !(host.audio.ctx && host.audio.ctx.state !== 'running');
+      enableControls(true);
+    } catch (e) {
+      if (String(e).includes('__vm_exit__')) return;
+      console.error(e);
+      show('open'); setState('no APK loaded');
+      $('openErr').hidden = false;
+      $('openErr').textContent = (e && e.message ? e.message : String(e)) + '. Check that the file is the Pocket God APK and try again.';
+    }
+  }
+
+  let fpsT = performance.now(), fpsN = 0, msAcc = 0;
+  function tick(h) {
+    fpsN++; msAcc += h.frameMs;
+    const now = performance.now();
+    if (now - fpsT > 500) {
+      $('sFps').textContent = Math.round(fpsN * 1000 / (now - fpsT));
+      $('sMs').textContent = (msAcc / fpsN).toFixed(1);
+      $('sDraws').textContent = h.gles.draws;
+      fpsT = now; fpsN = 0; msAcc = 0;
+    }
+    // Gravity for the game. Neutral is "phone held sideways, upright".
+    // With a real motion sensor and a landscape screen, the phone's own gravity is used; when the phone
+    // lies flat (little gravity in the screen plane) it eases back to neutral so the island stays level.
+    let ax = 0, ay = -9.8, az = 0;
+    const m = h.motion;
+    const real = m && performance.now() - m.t < 600 && window.innerWidth > window.innerHeight;
+    if (real) {
+      const w = Math.min(1, Math.max(0, (Math.hypot(m.x, m.y) - 1.5) / 3.5));
+      ax = m.x * w; ay = m.y * w - 9.8 * (1 - w); az = m.z * w;
+    }
+    if (tilt) { const a = tilt * Math.PI / 180; ax = 9.8 * Math.sin(a); ay = -9.8 * Math.cos(a); az = 0; }
+    if (shakeFrames > 0) { const k = Math.floor(shakeFrames / 3) % 2; const s = k ? 2.4 : 0.15; ax *= s; ay *= s; az *= s; shakeFrames--; }
+    h.sendAccel(ax, ay, az);
+    $('state').textContent = real ? 'running · motion sensor' : 'running';
+  }
+
+  /* ---------- controls ---------- */
+  let tilt = 0, shakeFrames = 0, tiltKeys = 0;
+  function enableControls(on) { for (const id of ['bBack', 'bShake', 'bTilt']) $(id).disabled = !on; }
+  $('bBack').addEventListener('click', () => host && host.back());
+  const shake = () => { shakeFrames = 60; };
+  $('bShake').addEventListener('click', shake);
+  $('bTilt').addEventListener('click', () => { tilt = tilt ? 0 : 35; $('bTilt').setAttribute('aria-pressed', String(!!tilt)); });
+  const setMute = (m) => { $('bMute').setAttribute('aria-pressed', String(m)); $('bMute').querySelector('.label').textContent = m ? 'Muted' : 'Sound on'; if (host) host.audio.setMuted(m); try { localStorage.setItem('dwp:mute', m ? '1' : '0'); } catch (e) { } };
+  let muted = false; try { muted = localStorage.getItem('dwp:mute') === '1'; } catch (e) { }
+  $('bMute').addEventListener('click', () => { muted = !muted; setMute(muted); });
+  setMute(muted);
+  const askMotion = () => {
+    try { if (typeof DeviceMotionEvent !== 'undefined' && DeviceMotionEvent.requestPermission) DeviceMotionEvent.requestPermission().catch(() => { }); } catch (e) { }
+  };
+  const fakeFull = (on) => { $('stage').classList.toggle('fake-full', on); document.body.style.overflow = on ? 'hidden' : ''; };
+  const fullscreen = () => {
+    const st = $('stage');
+    askMotion();
+    if (document.fullscreenElement || document.webkitFullscreenElement) { (document.exitFullscreen || document.webkitExitFullscreen).call(document); return; }
+    if (st.classList.contains('fake-full')) { fakeFull(false); return; }
+    const req = st.requestFullscreen || st.webkitRequestFullscreen;
+    if (!req) { fakeFull(true); return; }
+    Promise.resolve(req.call(st, { navigationUI: 'hide' }))
+      .then(() => { try { screen.orientation.lock('landscape').catch(() => { }); } catch (e) { } })
+      .catch(() => fakeFull(true));
+  };
+  $('bFull').addEventListener('click', fullscreen);
+  $('bExitFs').addEventListener('click', fullscreen);
+  window.addEventListener('keydown', (e) => {
+    if (!$('dlg').hidden || e.target.tagName === 'INPUT') return;
+    if (!host || !host.running) return;
+    if (e.key === 'Escape') { e.preventDefault(); host.back(); }
+    else if (e.key === 's' || e.key === 'S') shake();
+    else if (e.key === 'm' || e.key === 'M') { muted = !muted; setMute(muted); }
+    else if (e.key === 'f' || e.key === 'F') fullscreen();
+    else if (e.key === 'ArrowLeft') { tilt = -35; e.preventDefault(); }
+    else if (e.key === 'ArrowRight') { tilt = 35; e.preventDefault(); }
+  });
+  window.addEventListener('keyup', (e) => { if ((e.key === 'ArrowLeft' && tilt < 0) || (e.key === 'ArrowRight' && tilt > 0)) { tilt = 0; $('bTilt').setAttribute('aria-pressed', 'false'); } });
+  document.addEventListener('visibilitychange', () => { if (!host || !host.running) return; document.hidden ? host.pause() : host.resume(); });
+  $('restart').addEventListener('click', () => { location.hash = ''; if (currentApk) { try { host && (host.running = false); } catch (e) { } resetCanvas(); boot(currentApk.buf, currentApk.name); } });
+  function resetCanvas() { const old = $('gl'); const c = document.createElement('canvas'); c.id = 'gl'; c.setAttribute('aria-label', 'Game screen'); old.replaceWith(c); }
+
+  /* ---------- file input ---------- */
+  async function takeFile(f) {
+    if (!f) return;
+    $('openErr').hidden = true;
+    const buf = await f.arrayBuffer();
+    if ($('remember').checked) cachePut({ name: f.name, size: f.size, buf });
+    boot(buf, f.name);
+  }
+  $('file').addEventListener('change', (e) => takeFile(e.target.files[0]));
+  const drop = $('drop');
+  ['dragenter', 'dragover'].forEach(t => drop.addEventListener(t, (e) => { e.preventDefault(); drop.classList.add('over'); }));
+  ['dragleave', 'drop'].forEach(t => drop.addEventListener(t, (e) => { e.preventDefault(); drop.classList.remove('over'); }));
+  drop.addEventListener('drop', (e) => takeFile(e.dataTransfer.files[0]));
+  $('screen').addEventListener('dragover', (e) => e.preventDefault());
+  $('screen').addEventListener('drop', (e) => { e.preventDefault(); if (!host || !host.running) takeFile(e.dataTransfer.files[0]); });
+  $('playCached').addEventListener('click', () => cached && boot(cached.buf, cached.name));
+  $('forget').addEventListener('click', async () => { await cacheDel(); cached = null; show('open'); });
+
+  /* If the page is hosted next to base.apk, download and start it automatically. */
+  async function tryServerApk() {
+    if (location.protocol === 'file:') return false;
+    let r;
+    try { r = await fetch('base.apk', { cache: 'no-cache' }); } catch (e) { return false; }
+    if (!r.ok || !r.body) return false;
+    const ct = r.headers.get('content-type') || '';
+    if (ct.includes('text/html')) return false;
+    const total = +r.headers.get('content-length') || 0;
+    show('load'); setState('loading', 'load');
+    $('loadTitle').textContent = 'Downloading base.apk';
+    const reader = r.body.getReader(), parts = [];
+    let got = 0;
+    try {
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        parts.push(value); got += value.length;
+        $('bar').style.width = total ? (got / total * 100).toFixed(1) + '%' : '50%';
+        $('loadDetail').textContent = mb(got) + (total ? ' of ' + mb(total) : '');
+      }
+    } catch (e) { return false; }
+    const u8 = new Uint8Array(got); let o = 0;
+    for (const p of parts) { u8.set(p, o); o += p.length; }
+    if (u8[0] !== 0x50 || u8[1] !== 0x4b) return false; // not a zip (e.g. a host's HTML fallback page)
+    $('bar').style.width = '0%';
+    boot(u8.buffer, 'base.apk');
+    return true;
+  }
+
+  show('load'); $('loadTitle').textContent = 'Looking for base.apk'; $('loadDetail').textContent = 'next to this page';
+  tryServerApk().then(async (ok) => {
+    if (ok || host) return;
+    show('open');
+    const c = await cacheGet();
+    if (c && c.buf && !host) { cached = c; $('cachedName').textContent = c.name + ' · ' + mb(c.size || c.buf.byteLength); show('cached'); }
+  });
+})();
+</script>
